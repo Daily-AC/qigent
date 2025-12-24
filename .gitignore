@@ -1,0 +1,53 @@
+# Binaries
+/qigent
+/qigent.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Node.js
+node_modules/
+/frontend/node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Frontend Build
+/frontend/dist/
+/frontend/dist-ssr/
+/frontend/coverage/
+
+# Local Env Files
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Config (Secrets)
+config.json
+brain/
