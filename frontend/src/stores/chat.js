@@ -66,5 +66,15 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  return { messages, isConnected, connect, disconnect }
+  function sendMessage(content) {
+    if (socket.value && isConnected.value) {
+      socket.value.send(JSON.stringify({
+        sender: 'User',
+        content: content,
+        type: 'injection' // Backend expects msg.Sender == "User", type can be anything really, but let's be consistent
+      }))
+    }
+  }
+
+  return { messages, isConnected, connect, disconnect, sendMessage }
 })
