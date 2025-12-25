@@ -51,3 +51,6 @@ Thumbs.db
 # Project Config (Secrets)
 config.json
 brain/
+
+# data
+data/
