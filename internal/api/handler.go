@@ -97,6 +97,33 @@ func HandleChat(c *gin.Context) {
 	// Send an initial status
 	ws.WriteJSON(chat.Message{Sender: "System", Content: "Connected to conversation: " + conv.Topic, Type: "system"})
 
+	// Start a goroutine to read input from WebSocket (User Messages)
+	go func() {
+		defer func() {
+			room.StopLoop() // If read fails, close room
+		}()
+		for {
+			var msg chat.Message
+			if err := ws.ReadJSON(&msg); err != nil {
+				log.Println("WebSocket Read Error (Client disconnect?):", err)
+				return // Stops loop, deferred StopLoop triggers
+			}
+
+			// Handle different incoming message types
+			if msg.Type == "cmd" && msg.Content == "conclude" {
+				log.Println("Received Conclude Command")
+				// Using the first agent's client for Judge? Or create a dedicated one?
+				// For MVP, reuse Agent A's client (same config).
+				if len(room.Agents) > 0 {
+					go room.Judge(room.Agents[0].LLMClient)
+				}
+			} else if msg.Sender == "User" {
+				// Inject into room
+				room.InjectMessage(msg)
+			}
+		}
+	}()
+
 	// Listen for Broadcasts and send to WebSocket
 	for {
 		msg, ok := <-room.Broadcast
@@ -114,7 +141,7 @@ func HandleChat(c *gin.Context) {
 		err := ws.WriteJSON(msg)
 		if err != nil {
 			log.Println("Write error:", err)
-			break
+			break // Breaks loop
 		}
 	}
 }

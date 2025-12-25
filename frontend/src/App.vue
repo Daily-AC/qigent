@@ -157,6 +157,40 @@ const handleExport = () => {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+const userInjectionInput = ref('')
+
+const handleUserInjection = () => {
+  if (!userInjectionInput.value.trim()) return
+  chatStore.sendMessage(userInjectionInput.value)
+  userInjectionInput.value = ''
+}
+
+const saveGlobalConfig = async (newConfig) => {
+  try {
+    await api.post('/config', newConfig)
+    globalConfig.value = newConfig
+    // If connected, maybe update connection? 
+    // Usually settings are static for the session, but prompt updates might be nice.
+    // For now, just save.
+    isSettingsOpen.value = false
+  } catch (e) {
+    console.error('Failed to save config', e)
+    alert('Failed to save settings')
+  }
+}
+const concludeChat = () => {
+    // Send command to backend
+    // We need a method in chatStore or direct access
+    // chatStore.sendMessage sends JSON.
+    if (chatStore.isConnected) {
+        chatStore.socket.send(JSON.stringify({
+            sender: 'User', // irrelevant
+            type: 'cmd',
+            content: 'conclude'
+        }))
+    }
+}
 </script>
 
 <template>
@@ -221,28 +255,59 @@ const handleExport = () => {
         <div v-else class="h-full flex flex-col space-y-4">
             <ChatWindow :messages="chatStore.messages" class="flex-1 shadow-sm border border-gray-200 bg-white" />
             
-            <!-- Controls -->
-            <div class="flex justify-center pb-2">
-                <button 
-                v-if="!chatStore.isConnected"
-                @click="startChat" 
-                class="px-8 py-3 bg-black text-white rounded-full font-medium hover:bg-gray-800 transition shadow-lg flex items-center gap-2"
-                >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                </svg>
-                Resume Debate
-                </button>
-                <button 
-                v-else
-                @click="stopChat" 
-                class="px-8 py-3 bg-red-600 text-white rounded-full font-medium hover:bg-red-700 transition shadow-lg flex items-center gap-2"
-                >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                Pause
-                </button>
+            <!-- Controls & Input -->
+            <div class="flex flex-col items-center gap-4 pb-2">
+                <div class="flex gap-4">
+                  <button 
+                  v-if="!chatStore.isConnected"
+                  @click="startChat" 
+                  class="px-8 py-3 bg-black text-white rounded-full font-medium hover:bg-gray-800 transition shadow-lg flex items-center gap-2"
+                  >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                  </svg>
+                  Resume Debate
+                  </button>
+                  
+                  <template v-else>
+                    <button 
+                    @click="stopChat" 
+                    class="px-8 py-3 bg-red-600 text-white rounded-full font-medium hover:bg-red-700 transition shadow-lg flex items-center gap-2"
+                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                    Pause
+                    </button>
+                    <button 
+                    @click="concludeChat" 
+                    class="px-6 py-3 bg-yellow-600 text-white rounded-full font-medium hover:bg-yellow-700 transition shadow-lg flex items-center gap-2"
+                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    Conclude
+                    </button>
+                  </template>
+                </div>
+                
+                <!-- God Mode Input -->
+                <div v-if="chatStore.isConnected" class="w-full max-w-3xl flex gap-2 animate-fade-in-up">
+                  <input 
+                    v-model="userInjectionInput" 
+                    @keyup.enter="handleUserInjection"
+                    type="text" 
+                    placeholder="Enter God Mode: Inject your thought into the debate..." 
+                    class="flex-1 px-4 py-3 rounded-xl border border-gray-300 shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+                  >
+                  <button 
+                    @click="handleUserInjection"
+                    class="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 shadow transition font-medium disabled:opacity-50"
+                    :disabled="!userInjectionInput"
+                  >
+                    Inject
+                  </button>
+                </div>
             </div>
         </div>
       </div>
