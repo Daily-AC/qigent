@@ -30,5 +30,15 @@ func main() {
 	r.GET("/config", api.GetConfig)
 	r.POST("/config", api.UpdateConfig)
 
+	// Conversation Routes
+	r.GET("/conversations", api.GetConversations)
+	r.POST("/conversations", api.CreateConversation)
+	r.GET("/conversations/:id", api.GetConversation)
+	r.DELETE("/conversations/:id", api.DeleteConversation)
+
+	r.GET("/roles", api.GetRoles)
+	r.POST("/roles", api.CreateRole)
+	r.DELETE("/roles/:name", api.DeleteRole)
+
 	r.Run(":8080")
 }

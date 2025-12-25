@@ -6,11 +6,11 @@ export const useChatStore = defineStore('chat', () => {
   const isConnected = ref(false)
   const socket = ref(null)
 
-  function connect(config) {
+  function connect(url, config) {
     if (socket.value) return
 
     // Connect to Backend WS
-    socket.value = new WebSocket('ws://localhost:8080/ws/chat')
+    socket.value = new WebSocket(url)
 
     socket.value.onopen = () => {
       isConnected.value = true

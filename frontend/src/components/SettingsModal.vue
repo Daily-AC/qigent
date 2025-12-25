@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, toRaw } from 'vue'
 
 const props = defineProps({
   isOpen: Boolean,
@@ -8,114 +8,78 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
-const activeTab = ref('api') // api, agentA, agentB
-
 const config = ref({
   apiKey: '',
   baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-3.5-turbo',
-  agentA: {
-    name: 'Agent A',
-    prompt: 'You are a helpful assistant.'
-  },
-  agentB: {
-    name: 'Agent B',
-    prompt: 'You are a critical thinker.'
-  }
+  model: 'gpt-3.5-turbo'
 })
 
-onMounted(() => {
-  if (props.initialConfig) {
-    // Deep copy to avoid mutating prop directly
-    config.value = JSON.parse(JSON.stringify(props.initialConfig))
+watch(() => props.initialConfig, (newVal) => {
+  if (newVal) {
+    config.value = {
+        apiKey: newVal.apiKey,
+        baseUrl: newVal.baseUrl,
+        model: newVal.model
+    }
   }
-})
+}, { immediate: true, deep: true })
 
 const save = () => {
-  emit('save', config.value)
+  emit('save', toRaw(config.value))
   emit('close')
 }
 </script>
 
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-      <!-- Header -->
-      <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-        <h2 class="text-xl font-bold text-gray-800">Settings</h2>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 transition">
-          <span class="text-2xl">&times;</span>
-        </button>
-      </div>
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative">
+      <button @click="$emit('close')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
 
-      <!-- Tabs -->
-      <div class="flex border-b border-gray-200">
-        <button 
-          v-for="tab in ['api', 'agentA', 'agentB']" 
-          :key="tab"
-          @click="activeTab = tab"
-          class="flex-1 py-3 text-sm font-medium transition duration-200 border-b-2"
-          :class="activeTab === tab ? 'border-blue-500 text-blue-600 bg-blue-50/30' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
-        >
-          {{ tab === 'api' ? 'API Config' : (tab === 'agentA' ? 'Agent A' : 'Agent B') }}
-        </button>
-      </div>
+      <h2 class="text-xl font-bold mb-6 text-gray-800">System Settings</h2>
 
-      <!-- Content -->
-      <div class="p-6 overflow-y-auto flex-1 space-y-4">
-        
-        <!-- API Config -->
-        <div v-if="activeTab === 'api'" class="space-y-4 animate-fade-in">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
-            <input v-model="config.baseUrl" type="text" placeholder="https://api.openai.com/v1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-            <p class="text-xs text-gray-500 mt-1">For Deepseek, usage might be: https://api.deepseek.com</p>
-          </div>
+      <div class="space-y-4">
+          <!-- API Key -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-            <input v-model="config.apiKey" type="password" placeholder="sk-..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+            <input 
+              v-model="config.apiKey" 
+              type="password" 
+              placeholder="sk-..." 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            >
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Topic (Guide)</label>
-            <input v-model="config.topic" type="text" placeholder="e.g., The Future of AI" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-            <p class="text-xs text-gray-500 mt-1">Leave empty for open-ended conversation.</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
-            <input v-model="config.model" type="text" placeholder="gpt-3.5-turbo" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
-            <p class="text-xs text-gray-500 mt-1">e.g., deepseek-chat, deepseek-reasoner</p>
-          </div>
-        </div>
 
-        <!-- Agent Config -->
-        <div v-else class="space-y-4 animate-fade-in">
+          <!-- Base URL -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input v-model="config[activeTab].name" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+             <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+             <input 
+               v-model="config.baseUrl" 
+               type="text" 
+               placeholder="https://api.openai.com/v1"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+             >
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
-            <textarea v-model="config[activeTab].prompt" rows="8" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono text-sm"></textarea>
-          </div>
-        </div>
 
+          <!-- Model -->
+          <div>
+             <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+             <input 
+               v-model="config.model" 
+               type="text" 
+               placeholder="gpt-3.5-turbo"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+             >
+          </div>
       </div>
 
-      <!-- Footer -->
-      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-        <button @click="$emit('close')" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition font-medium">Cancel</button>
-        <button @click="save" class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition shadow-lg font-medium">Save Configuration</button>
+      <div class="mt-8 flex justify-end gap-3">
+        <button @click="$emit('close')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+        <button @click="save" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md font-medium">Save Configuration</button>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-</style>
