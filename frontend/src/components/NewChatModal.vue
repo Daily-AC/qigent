@@ -2,6 +2,12 @@
 import { ref, onMounted, watch } from 'vue'
 import api from '../services/api'
 
+const props = defineProps({
+  isOpen: Boolean
+})
+
+const emit = defineEmits(['close', 'create'])
+
 const roles = ref([])
 const topic = ref('')
 const selectedAgentA = ref(null)
