@@ -23,7 +23,8 @@ const currentAgents = ref({
   agentB: { name: 'Agent B', prompt: '' }
 })
 
-const api = axios.create({ baseURL: 'http://localhost:8080' })
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const api = axios.create({ baseURL: apiBaseUrl })
 
 // Global Config (API Key)
 const globalConfig = ref({
@@ -98,11 +99,14 @@ const handleCreateConversation = async (payload) => {
 
 const handleStartParams = () => {
   // Combine Global Config + Conversation ID for Websocket Handshake
-  // Note: HandleChat logic now expects conversationId in Query Param
-  // And expects API Key in handshake
+  // Derive WebSocket URL from API Base URL
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+  // Replace http/https with ws/wss
+  const wsProtocol = apiBase.startsWith('https') ? 'wss:' : 'ws:'
+  // Remove protocol and get host
+  const host = apiBase.replace(/^https?:\/\//, '')
   
-  // We need to modify ChatStore to accept URL Query Params
-  const wsUrl = `ws://localhost:8080/ws/chat?conversationId=${activeConversationId.value}`
+  const wsUrl = `${wsProtocol}//${host}/ws/chat?conversationId=${activeConversationId.value}`
   
   // Handshake payload
   const handshake = {
