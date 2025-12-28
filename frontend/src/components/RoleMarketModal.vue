@@ -2,6 +2,12 @@
 import { ref, onMounted, watch } from 'vue'
 import api from '../services/api'
 
+const props = defineProps({
+  isOpen: Boolean
+})
+
+const emit = defineEmits(['close'])
+
 const roles = ref([])
 const isAdding = ref(false)
 const newRole = ref({

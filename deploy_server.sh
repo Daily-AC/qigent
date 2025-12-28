@@ -45,9 +45,13 @@ go build -o qigent-server main.go
 # 4. Build Frontend
 echo -e "${GREEN}[4/6] Building Frontend...${NC}"
 cd frontend
-# Ensure dependencies are installed (sometimes we might copy node_modules but better to reinstall)
+# Ensure dependencies are installed
 rm -rf node_modules
 npm install
+
+# Generate .env.production to ensure correct API URL
+echo "VITE_API_BASE_URL=http://$SERVER_IP:$BACKEND_PORT" > .env.production
+
 npm run build
 cd ..
 
