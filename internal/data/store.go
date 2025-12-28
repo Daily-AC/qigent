@@ -1,237 +1,105 @@
 package data
 
 import (
-	"encoding/json"
-	"os"
-	"sync"
+	"errors"
+
+	"gorm.io/gorm"
 )
 
-var (
-	dataDir           = "data"
-	conversationsFile = "data/conversations.json"
-	rolesFile         = "data/roles.json"
-	storeLock         sync.RWMutex
-)
+// -- Users --
 
-// EnsureDataDir creates the data directory if it doesn't exist
-func EnsureDataDir() {
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		os.Mkdir(dataDir, 0755)
+func CreateUser(username, passwordHash string) (*User, error) {
+	user := User{Username: username, Password: passwordHash}
+	err := DB.Create(&user).Error
+	return &user, err
+}
+
+func GetUserByUsername(username string) (*User, error) {
+	var user User
+	err := DB.Where("username = ?", username).First(&user).Error
+	if err != nil {
+		return nil, err
 	}
+	return &user, nil
+}
+
+func GetUserByID(id uint) (*User, error) {
+	var user User
+	err := DB.First(&user, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 // -- Conversations --
 
-func LoadConversations() ([]Conversation, error) {
-	storeLock.RLock()
-	defer storeLock.RUnlock()
-
-	EnsureDataDir()
-
-	data, err := os.ReadFile(conversationsFile)
-	if os.IsNotExist(err) {
-		return []Conversation{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var convs []Conversation
-	if err := json.Unmarshal(data, &convs); err != nil {
-		return []Conversation{}, nil
-	}
-	return convs, nil
+func CreateConversation(conv *Conversation) error {
+	// GORM will create or update
+	return DB.Save(conv).Error
 }
 
-func SaveConversation(conv Conversation) error {
-	storeLock.Lock()
-	defer storeLock.Unlock()
-
-	EnsureDataDir()
-
-	// Load existing
-	convs, _ := loadConversationsUnsafe()
-
-	// Update or Append
-	found := false
-	for i, c := range convs {
-		if c.ID == conv.ID {
-			convs[i] = conv
-			found = true
-			break
-		}
-	}
-	if !found {
-		convs = append([]Conversation{conv}, convs...) // Prepend new
-	}
-
-	return saveConversationsUnsafe(convs)
+func GetConversations(userID uint) ([]Conversation, error) {
+	var convs []Conversation
+	// Preload? History is simpler if stored as JSON blob
+	err := DB.Where("user_id = ?", userID).Order("updated_at desc").Find(&convs).Error
+	return convs, err
 }
 
 func GetConversation(id string) (*Conversation, error) {
-	storeLock.RLock()
-	defer storeLock.RUnlock()
-
-	convs, err := loadConversationsUnsafe()
-	if err != nil {
-		return nil, err
+	var conv Conversation
+	err := DB.Where("id = ?", id).First(&conv).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil // Return nil if not found
 	}
-
-	for _, c := range convs {
-		if c.ID == id {
-			return &c, nil
-		}
-	}
-	return nil, nil // Not found
+	return &conv, err
 }
 
-func DeleteConversation(id string) error {
-	storeLock.Lock()
-	defer storeLock.Unlock()
-
-	convs, err := loadConversationsUnsafe()
-	if err != nil {
-		return err
-	}
-
-	var newConvs []Conversation
-	for _, c := range convs {
-		if c.ID != id {
-			newConvs = append(newConvs, c)
-		}
-	}
-
-	return saveConversationsUnsafe(newConvs)
+func SaveConversation(conv *Conversation) error {
+	// Save includes Create or Update
+	// Ensure all fields are saved
+	return DB.Save(conv).Error
 }
 
-// Helpers without locking for internal use
-func loadConversationsUnsafe() ([]Conversation, error) {
-	data, err := os.ReadFile(conversationsFile)
-	if os.IsNotExist(err) {
-		return []Conversation{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var convs []Conversation
-	json.Unmarshal(data, &convs)
-	return convs, nil
-}
-
-func saveConversationsUnsafe(convs []Conversation) error {
-	data, err := json.MarshalIndent(convs, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(conversationsFile, data, 0644)
+func DeleteConversation(id string, userID uint) error {
+	return DB.Where("id = ? AND user_id = ?", id, userID).Delete(&Conversation{}).Error
 }
 
 // -- Roles --
 
-func LoadRoles() ([]Role, error) {
-	storeLock.RLock()
-	defer storeLock.RUnlock()
-
-	EnsureDataDir()
-
-	data, err := os.ReadFile(rolesFile)
-	if os.IsNotExist(err) {
-		// Return defaults if not exist
-		return DefaultRoles(), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
+func GetRoles(userID uint) ([]Role, error) {
 	var roles []Role
-	if err := json.Unmarshal(data, &roles); err != nil {
-		return DefaultRoles(), nil
-	}
-	return roles, nil
+	// Fetch System Roles (UserID=0) AND User Roles
+	err := DB.Where("user_id = ? OR user_id = 0", userID).Find(&roles).Error
+	return roles, err
 }
 
-func DefaultRoles() []Role {
-	return []Role{
-		{Name: "苏格拉底", Prompt: "你是一个苏格拉底式的哲学家，喜欢反问。"},
-		{Name: "乔布斯", Prompt: "你是一个追求极致产品体验的创新者。"},
-		{Name: "马斯克", Prompt: "你是一个疯狂的梦想家，思考第一性原理。"},
-		{Name: "孔子", Prompt: "你是一位儒家圣人，讲究仁义礼智信。"},
-		{Name: "现代大学生", Prompt: "你是一个务实的现代大学生。"},
-	}
+func AddRole(role *Role) error {
+	return DB.Create(role).Error
 }
 
-func AddRole(role Role) error {
-	storeLock.Lock()
-	defer storeLock.Unlock()
+func DeleteRole(name string, userID uint) error {
+	// Only delete custom roles owned by user
+	return DB.Where("name = ? AND user_id = ?", name, userID).Delete(&Role{}).Error
+}
 
-	roles, err := loadRolesUnsafe()
-	if err != nil {
-		// If fails to load, maybe try default? Or init empty?
-		// Assume loadRolesUnsafe handles default if missing
-		roles = DefaultRoles()
+// Default Roles Seeding
+func SeedRoles() {
+	// Ensure DB is init
+	if DB == nil {
+		return
 	}
 
-	// Check if exists
-	for _, r := range roles {
-		if r.Name == role.Name {
-			// Update or Error? Let's Error for duplicate name
-			return nil // Or return error? For MVP we just ignore or overwrite?
-			// Let's overwrite
+	var count int64
+	DB.Model(&Role{}).Where("user_id = 0").Count(&count)
+	if count == 0 {
+		defaults := []Role{
+			{Name: "苏格拉底", Prompt: "你是一个苏格拉底式的哲学家，喜欢反问。", UserID: 0},
+			{Name: "乔布斯", Prompt: "你是一个追求极致产品体验的创新者。", UserID: 0},
+			{Name: "马斯克", Prompt: "你是一个疯狂的梦想家，思考第一性原理。", UserID: 0},
+			{Name: "孔子", Prompt: "你是一位儒家圣人，讲究仁义礼智信。", UserID: 0},
+			{Name: "现代大学生", Prompt: "你是一个务实的现代大学生。", UserID: 0},
 		}
+		DB.Create(&defaults)
 	}
-
-	// If overwrite needed, find index. Since we didn't...
-	// Simplest: Check unique name
-	newRoles := []Role{}
-	for _, r := range roles {
-		if r.Name != role.Name {
-			newRoles = append(newRoles, r)
-		}
-	}
-	newRoles = append(newRoles, role)
-
-	return saveRolesUnsafe(newRoles)
-}
-
-func DeleteRole(name string) error {
-	storeLock.Lock()
-	defer storeLock.Unlock()
-
-	roles, err := loadRolesUnsafe()
-	if err != nil {
-		return err
-	}
-
-	newRoles := []Role{}
-	for _, r := range roles {
-		if r.Name != name {
-			newRoles = append(newRoles, r)
-		}
-	}
-
-	return saveRolesUnsafe(newRoles)
-}
-
-// Helpers for Roles
-func loadRolesUnsafe() ([]Role, error) {
-	data, err := os.ReadFile(rolesFile)
-	if os.IsNotExist(err) {
-		return DefaultRoles(), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var roles []Role
-	if err := json.Unmarshal(data, &roles); err != nil {
-		return DefaultRoles(), nil
-	}
-	return roles, nil
-}
-
-func saveRolesUnsafe(roles []Role) error {
-	data, err := json.MarshalIndent(roles, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(rolesFile, data, 0644)
 }

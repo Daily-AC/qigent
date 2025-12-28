@@ -18,7 +18,7 @@ echo -e "${GREEN}Starting Deployment...${NC}"
 echo -e "${GREEN}[1/6] Installing dependencies...${NC}"
 apt-get update
 # Suppress prompts
-DEBIAN_FRONTEND=noninteractive apt-get install -y git nginx golang curl
+DEBIAN_FRONTEND=noninteractive apt-get install -y git nginx golang curl mysql-server
 
 # Install Node.js 22.x (Required by Vite)
 if ! node -v | grep -q "v22"; then
