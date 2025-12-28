@@ -9,7 +9,7 @@ import (
 
 type User struct {
 	gorm.Model
-	Username string `json:"username" gorm:"unique"`
+	Username string `json:"username" gorm:"unique;size:191"`
 	Password string `json:"-"` // Hash
 }
 
@@ -23,7 +23,7 @@ type AgentConfig struct {
 // or just text. GORM supports serializer.
 
 type Conversation struct {
-	ID     string `json:"id" gorm:"primaryKey"`
+	ID     string `json:"id" gorm:"primaryKey;size:191"`
 	UserID uint   `json:"userId"`
 	Topic  string `json:"topic"`
 	Status string `json:"status"` // "active", "paused"
@@ -41,7 +41,7 @@ type Conversation struct {
 type Role struct {
 	gorm.Model
 	UserID uint   `json:"userId"` // 0 for public/system roles?
-	Name   string `json:"name" gorm:"uniqueIndex:idx_name_user"`
+	Name   string `json:"name" gorm:"uniqueIndex:idx_name_user;size:191"`
 	Prompt string `json:"prompt"`
 	Avatar string `json:"avatar"`
 }
