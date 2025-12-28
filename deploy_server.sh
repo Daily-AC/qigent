@@ -3,6 +3,8 @@
 # Qigent One-Click Deployment Script
 # Usage: sudo ./deploy_server.sh
 
+set -e # Exit immediately if a command exits with a non-zero status.
+
 # --- Configuration ---
 APP_DIR="/opt/qigent"
 BACKEND_PORT="8090"
