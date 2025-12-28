@@ -1,13 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import axios from 'axios'
-
-const props = defineProps({
-  isOpen: Boolean
-})
-
-const emit = defineEmits(['close', 'create'])
-const api = axios.create({ baseURL: 'http://localhost:8080' })
+import api from '../services/api'
 
 const roles = ref([])
 const topic = ref('')
