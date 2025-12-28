@@ -42,6 +42,11 @@ cd "$APP_DIR" || exit
 echo -e "${GREEN}[3/6] Building Backend...${NC}"
 export GOOS=linux
 export GOARCH=amd64
+
+# Cleanup old conflicting files (caused by SCP merge)
+rm -f internal/api/conversation.go
+rm -f internal/api/config.go
+
 go build -o qigent-server main.go
 
 # 4. Build Frontend
