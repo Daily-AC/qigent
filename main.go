@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"qigent/internal/api"
 
 	"github.com/gin-gonic/gin"
@@ -40,5 +41,10 @@ func main() {
 	r.POST("/roles", api.CreateRole)
 	r.DELETE("/roles/:name", api.DeleteRole)
 
-	r.Run(":8080")
+	// Read Port from Env
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	r.Run(":" + port)
 }
