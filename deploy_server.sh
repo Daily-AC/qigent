@@ -18,7 +18,16 @@ echo -e "${GREEN}Starting Deployment...${NC}"
 echo -e "${GREEN}[1/6] Installing dependencies...${NC}"
 apt-get update
 # Suppress prompts
-DEBIAN_FRONTEND=noninteractive apt-get install -y git nginx golang nodejs npm
+DEBIAN_FRONTEND=noninteractive apt-get install -y git nginx golang curl
+
+# Install Node.js 22.x (Required by Vite)
+if ! node -v | grep -q "v22"; then
+    echo "Installing Node.js 22.x..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x -o nodesource_setup.sh
+    bash nodesource_setup.sh
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+    rm nodesource_setup.sh
+fi
 
 # 2. Setup Directory
 echo -e "${GREEN}[2/6] Setting up directory...${NC}"
