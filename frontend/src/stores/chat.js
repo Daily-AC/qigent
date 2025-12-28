@@ -67,12 +67,15 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function sendMessage(content) {
-    if (socket.value && isConnected.value) {
-      socket.value.send(JSON.stringify({
-        sender: 'User',
-        content: content,
-        type: 'injection' // Backend expects msg.Sender == "User", type can be anything really, but let's be consistent
-      }))
+    if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+       socket.value.send(JSON.stringify({
+         sender: 'User',
+         content: content,
+         type: 'injection'
+       }))
+    } else {
+       console.warn('Socket not open, cannot send message')
+       isConnected.value = false
     }
   }
 

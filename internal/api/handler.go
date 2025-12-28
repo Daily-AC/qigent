@@ -18,9 +18,119 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// HandleChat upgrades the HTTP connection to WebSocket and manages the chat session.
+// Conversation Routes
+
+func CreateConversation(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+
+	var req struct {
+		Topic  string           `json:"topic"`
+		AgentA data.AgentConfig `json:"agentA"`
+		AgentB data.AgentConfig `json:"agentB"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	conv := &data.Conversation{
+		ID:        chat.NewID(),
+		UserID:    userID,
+		Topic:     req.Topic,
+		Status:    "active",
+		AgentA:    req.AgentA,
+		AgentB:    req.AgentB,
+		History:   []chat.Message{},
+		CreatedAt: chat.Now(),
+	}
+
+	if err := data.CreateConversation(conv); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, conv)
+}
+
+func GetConversations(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+	convs, err := data.GetConversations(userID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, convs)
+}
+
+func GetConversation(c *gin.Context) {
+	id := c.Param("id")
+	userID := c.MustGet("userID").(uint)
+
+	conv, err := data.GetConversation(id)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "Not found"})
+		return
+	}
+	// Auth Check
+	if conv.UserID != userID {
+		c.JSON(403, gin.H{"error": "Forbidden"})
+		return
+	}
+	c.JSON(200, conv)
+}
+
+func DeleteConversation(c *gin.Context) {
+	id := c.Param("id")
+	userID := c.MustGet("userID").(uint)
+	if err := data.DeleteConversation(id, userID); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "deleted"})
+}
+
+// Role Routes
+
+func GetRoles(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+	roles, err := data.GetRoles(userID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, roles)
+}
+
+func CreateRole(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+	var role data.Role
+	if err := c.ShouldBindJSON(&role); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid json"})
+		return
+	}
+	role.UserID = userID
+	if err := data.AddRole(&role); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, role)
+}
+
+func DeleteRole(c *gin.Context) {
+	name := c.Param("name")
+	userID := c.MustGet("userID").(uint)
+	if err := data.DeleteRole(name, userID); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"status": "deleted"})
+}
+
+// WebSocket Chat Handler
 func HandleChat(c *gin.Context) {
-	// Need conversation ID to resume/connect
+	// Auth middleware should have set userID, BUT for WS, headers might be tricky.
+	// We expect token in Query Param for WS connection, which AuthMiddleware handles.
+	userID := c.MustGet("userID").(uint)
+
 	conversationID := c.Query("conversationId")
 
 	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -31,37 +141,32 @@ func HandleChat(c *gin.Context) {
 	defer ws.Close()
 
 	if conversationID == "" {
-		// Error: ID required
-		ws.WriteJSON(gin.H{"error": "conversationId query param is required"})
+		ws.WriteJSON(gin.H{"error": "conversationId conversationId required"})
 		return
 	}
 
-	// Load Conversation
 	conv, err := data.GetConversation(conversationID)
 	if err != nil || conv == nil {
-		log.Println("Conversation not found:", conversationID)
 		ws.WriteJSON(gin.H{"error": "Conversation not found"})
 		return
 	}
 
-	// 1. Handshake: Read Config (Optional update? Or just Ack?)
-	// For now, we assume config (API Key) comes from global config or handshake.
-	// But Topic and Agents are FIXED in the conversation data.
-	// Let's still read the handshake for API KEY injection, but ignore agents/topic if they exist in conv.
+	if conv.UserID != userID {
+		ws.WriteJSON(gin.H{"error": "Forbidden"})
+		return
+	}
 
+	// Handshake
 	var handshake struct {
 		APIKey  string `json:"apiKey"`
 		BaseURL string `json:"baseUrl"`
 		Model   string `json:"model"`
 	}
-
-	log.Println("Waiting for config handshake (Auth)...")
 	if err := ws.ReadJSON(&handshake); err != nil {
-		log.Println("Failed to read config:", err)
 		return
 	}
 
-	// Create Shared LLM Client
+	// Create Client
 	llmCfg := llm.Config{
 		BaseURL: handshake.BaseURL,
 		APIKey:  handshake.APIKey,
@@ -69,79 +174,66 @@ func HandleChat(c *gin.Context) {
 	}
 	client := llm.NewClient(llmCfg)
 
-	// Create Agents from Conversation Data
 	agentA := agent.NewAgent(conv.AgentA.Name, conv.AgentA.Prompt, client)
 	agentB := agent.NewAgent(conv.AgentB.Name, conv.AgentB.Prompt, client)
 
-	// Initialize Room
 	room := chat.NewRoom([]*agent.Agent{agentA, agentB})
-
-	// Hydrate Room History
 	room.History = conv.History
 
-	// Start the orchestration loop (Resume)
-	// If History is empty, start with Topic. If not, resume.
 	if len(conv.History) == 0 {
 		room.StartLoop(conv.Topic)
 	} else {
-		room.StartLoop("") // Empty topic means resume
+		room.StartLoop("")
 	}
 
 	defer func() {
 		room.StopLoop()
-		// Final Save on disconnect
 		conv.History = room.History
-		data.SaveConversation(*conv)
+		data.SaveConversation(conv)
 	}()
 
-	// Send an initial status
-	ws.WriteJSON(chat.Message{Sender: "System", Content: "Connected to conversation: " + conv.Topic, Type: "system"})
+	ws.WriteJSON(chat.Message{Sender: "System", Content: "Connected: " + conv.Topic, Type: "system"})
 
-	// Start a goroutine to read input from WebSocket (User Messages)
+	// Reader Loop
 	go func() {
-		defer func() {
-			room.StopLoop() // If read fails, close room
-		}()
+		defer room.StopLoop()
 		for {
 			var msg chat.Message
 			if err := ws.ReadJSON(&msg); err != nil {
-				log.Println("WebSocket Read Error (Client disconnect?):", err)
-				return // Stops loop, deferred StopLoop triggers
+				return
 			}
-
-			// Handle different incoming message types
 			if msg.Type == "cmd" && msg.Content == "conclude" {
-				log.Println("Received Conclude Command")
-				// Using the first agent's client for Judge? Or create a dedicated one?
-				// For MVP, reuse Agent A's client (same config).
 				if len(room.Agents) > 0 {
 					go room.Judge(room.Agents[0].LLMClient)
 				}
 			} else if msg.Sender == "User" {
-				// Inject into room
 				room.InjectMessage(msg)
 			}
 		}
 	}()
 
-	// Listen for Broadcasts and send to WebSocket
+	// Writer Loop
 	for {
 		msg, ok := <-room.Broadcast
 		if !ok {
 			break
 		}
-
-		// Optimization: Save periodically?
-		// For MVP, we save on every "full" message to ensure persistence if crash
 		if msg.Type == "full" {
-			conv.History = room.History // Room history is updated by now
-			go data.SaveConversation(*conv)
+			conv.History = room.History
+			go data.SaveConversation(conv)
 		}
-
-		err := ws.WriteJSON(msg)
-		if err != nil {
-			log.Println("Write error:", err)
-			break // Breaks loop
+		if err := ws.WriteJSON(msg); err != nil {
+			break
 		}
 	}
+}
+
+// Config Handlers (Old Global Config) - Deprecated or Per User?
+// Let's attach to User or AgentConfig? For MVP, maybe skip persistence or per-user.
+// Let's implement stub or per-user settings later.
+func GetConfig(c *gin.Context) {
+	c.JSON(200, gin.H{})
+}
+func UpdateConfig(c *gin.Context) {
+	c.JSON(200, gin.H{})
 }
