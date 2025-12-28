@@ -57,10 +57,23 @@ cd ..
 
 # 5. Configure Backend Service (Systemd)
 echo -e "${GREEN}[5/6] Configuring Backend Service (Systemd)...${NC}"
+
+# Kill any existing manual instances
+pkill qigent-server || true
+
+# Configure MySQL (Idempotent)
+echo "Configuring MySQL..."
+# Create Database
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS qigent;" || echo "DB creation skipped (maybe requires password?)"
+# Create User (qigent / qigent_secret) - Adjust if needed
+mysql -u root -e "CREATE USER IF NOT EXISTS 'qigent'@'localhost' IDENTIFIED BY 'qigent_secret';" || true
+mysql -u root -e "GRANT ALL PRIVILEGES ON qigent.* TO 'qigent'@'localhost';" || true
+mysql -u root -e "FLUSH PRIVILEGES;" || true
+
 cat > /etc/systemd/system/qigent.service <<EOF
 [Unit]
 Description=Qigent Backend API
-After=network.target
+After=network.target mysql.service
 
 [Service]
 Type=simple
@@ -69,6 +82,7 @@ WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/qigent-server
 Restart=on-failure
 Environment="PORT=$BACKEND_PORT"
+Environment="DSN=qigent:qigent_secret@tcp(127.0.0.1:3306)/qigent?charset=utf8mb4&parseTime=True&loc=Local"
 LimitNOFILE=4096
 
 [Install]
