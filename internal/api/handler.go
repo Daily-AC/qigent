@@ -203,6 +203,7 @@ func HandleChat(c *gin.Context) {
 				return
 			}
 			if msg.Type == "cmd" && msg.Content == "conclude" {
+				log.Println("Received conclude command, starting Judge...")
 				if len(room.Agents) > 0 {
 					go room.Judge(room.Agents[0].LLMClient)
 				}
