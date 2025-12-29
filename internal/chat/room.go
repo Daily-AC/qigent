@@ -53,19 +53,26 @@ func (r *Room) StartLoop(initialTopic string) {
 		// TURN RECOVERY LOGIC
 		startIndex := 0
 		if len(r.History) > 0 {
-			lastMsg := r.History[len(r.History)-1]
-			// If the last message was from an Agent, the NEXT agent should speak.
-			// If it was "User", maybe the SAME agent should respond? Or next?
-			// Let's assume User intervention doesn't skip a turn, but here we are talking about Resume.
-
-			// Find who spoke last
-			for i, ag := range r.Agents {
-				if ag.Name == lastMsg.Sender {
-					// This agent spoke last, so start with the NEXT one
-					startIndex = (i + 1) % len(r.Agents)
-					log.Printf("Resuming conversation. Last speaker: %s. Next speaker: %s", ag.Name, r.Agents[startIndex].Name)
+			// Search backwards avoiding "System", "User", "Judge"
+			found := false
+			for j := len(r.History) - 1; j >= 0; j-- {
+				lastMsg := r.History[j]
+				// Check if this sender matches any of our agents
+				for k, ag := range r.Agents {
+					if ag.Name == lastMsg.Sender {
+						// This agent spoke last, so start with the NEXT one
+						startIndex = (k + 1) % len(r.Agents)
+						log.Printf("Resuming conversation. Last speaker found: %s. Next speaker: %s", ag.Name, r.Agents[startIndex].Name)
+						found = true
+						break
+					}
+				}
+				if found {
 					break
 				}
+			}
+			if !found {
+				log.Println("Resuming conversation but no previous agent speaker found. Starting from 0.")
 			}
 		}
 
@@ -145,6 +152,13 @@ func (r *Room) StartLoop(initialTopic string) {
 						select {
 						case <-r.Stop:
 							log.Printf("Agent %s loop stopped via priority signal", ag.Name)
+							// Save partial content
+							partialContent := fullContentBuilder.String() + " [Paused]"
+							r.History = append(r.History, Message{
+								Sender:  ag.Name,
+								Content: ag.Name + ": " + partialContent,
+								Type:    "full",
+							})
 							return
 						default:
 						}
@@ -152,6 +166,13 @@ func (r *Room) StartLoop(initialTopic string) {
 						select {
 						case <-r.Stop:
 							log.Printf("Agent %s loop stopped via standard signal", ag.Name)
+							// Save partial content
+							partialContent := fullContentBuilder.String() + " [Paused]"
+							r.History = append(r.History, Message{
+								Sender:  ag.Name,
+								Content: ag.Name + ": " + partialContent,
+								Type:    "full",
+							})
 							return
 						// 1. Interruption Check (Inside the loop!)
 						case userMsg := <-r.InputChan:
@@ -294,6 +315,9 @@ func (r *Room) Judge(client *llm.Client) {
 		Content: "Judge: " + fullContent,
 		Type:    "full",
 	})
+
+	// 5. Signal Stop to Frontend
+	r.Broadcast <- Message{Sender: "System", Content: "stop", Type: "cmd"}
 }
 
 // StopLoop stops the conversation.

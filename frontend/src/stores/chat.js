@@ -41,6 +41,12 @@ export const useChatStore = defineStore('chat', () => {
           // Finished turn, maybe mark as done?
         } else if (msg.type === 'system') {
            messages.value.push(msg)
+        } else if (msg.type === 'cmd') {
+            if (msg.content === 'stop') {
+                console.log('Received stop command from server')
+                // Close connection gracefully
+                disconnect()
+            }
         } else {
            // Fallback for "full" or unidentified
            messages.value.push(msg)
