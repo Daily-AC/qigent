@@ -18,7 +18,7 @@ func InitDB(dsn string) error {
 	}
 
 	// Migrate the schema
-	err = DB.AutoMigrate(&User{}, &Conversation{}, &Role{})
+	err = DB.AutoMigrate(&User{}, &Conversation{}, &Role{}, &ChatConfig{})
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}

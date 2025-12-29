@@ -207,11 +207,26 @@ func (r *Room) StartLoop(initialTopic string) {
 							Type:    "full",
 						})
 
+						// Check Stop after speak
+						select {
+						case <-r.Stop:
+							return
+						default:
+						}
+
 						// Small delay between turns
-						time.Sleep(1 * time.Second)
+						select {
+						case <-time.After(1 * time.Second):
+						case <-r.Stop:
+							return
+						}
 					} else {
 						// If interrupted, maybe smaller delay or immediate next turn?
-						time.Sleep(500 * time.Millisecond)
+						select {
+						case <-time.After(500 * time.Millisecond):
+						case <-r.Stop:
+							return
+						}
 					}
 				}
 			}
@@ -230,7 +245,11 @@ func (r *Room) Judge(client *llm.Client) {
 	r.StopLoop()
 
 	// Give a moment for agents to silence
-	time.Sleep(500 * time.Millisecond)
+	// time.Sleep(500 * time.Millisecond) // No need to sleep if we rely on StopLoop closing channel immediately
+	// But let's verify Stop is respected by Agents.
+
+	// Create a clear break in UI
+	r.Broadcast <- Message{Sender: "System", Content: "Judging...", Type: "system"}
 
 	// 2. Prepare History
 	var histStrs []string
@@ -243,6 +262,11 @@ func (r *Room) Judge(client *llm.Client) {
 	// 3. Call LLM (Streaming)
 	r.Broadcast <- Message{Sender: "Judge", Type: "start"}
 
+	// We pass a dummy history or just the prompt?
+	// ChatStream expects systemPrompt + history.
+	// JudgePrompt is system-like instructions.
+
+	// Let's use Judge Prompt as system, and history as history.
 	stream, err := client.ChatStream(judgePrompt, histStrs)
 	if err != nil {
 		r.Broadcast <- Message{Sender: "Judge", Content: "裁判把自己关在厕所里了...", Type: "end"}
