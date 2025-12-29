@@ -1,10 +1,9 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 
 export const useChatStore = defineStore('chat', () => {
   const messages = ref([])
   const isConnected = ref(false)
-  const socket = ref(null)
+  const socket = shallowRef(null)
 
   function connect(url, config) {
     if (socket.value) return
@@ -79,5 +78,19 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  return { messages, isConnected, connect, disconnect, sendMessage }
+  function conclude() {
+    if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+        socket.value.send(JSON.stringify({
+            sender: 'User',
+            type: 'cmd',
+            content: 'conclude'
+        }))
+        // Do not set isConnected = false here, backend will close or handle it
+    } else {
+        console.warn('Cannot conclude, socket disconnected or not open')
+        isConnected.value = false
+    }
+  }
+
+  return { messages, isConnected, connect, disconnect, sendMessage, conclude }
 })
