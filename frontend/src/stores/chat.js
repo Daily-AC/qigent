@@ -1,3 +1,4 @@
+import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 
 export const useChatStore = defineStore('chat', () => {
