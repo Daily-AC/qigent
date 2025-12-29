@@ -169,16 +169,7 @@ const saveGlobalConfig = async (newConfig) => {
 }
 
 const concludeChat = () => {
-    if (chatStore.isConnected && chatStore.socket) {
-        chatStore.socket.send(JSON.stringify({
-            sender: 'User',
-            type: 'cmd',
-            content: 'conclude'
-        }))
-    } else {
-        console.warn('Cannot conclude, socket disconnected')
-        chatStore.isConnected = false
-    }
+    chatStore.conclude()
 }
 
 const handleLogout = () => {
