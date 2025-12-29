@@ -228,12 +228,28 @@ func HandleChat(c *gin.Context) {
 	}
 }
 
-// Config Handlers (Old Global Config) - Deprecated or Per User?
-// Let's attach to User or AgentConfig? For MVP, maybe skip persistence or per-user.
-// Let's implement stub or per-user settings later.
+// Config Handlers
 func GetConfig(c *gin.Context) {
-	c.JSON(200, gin.H{})
+	userID := c.MustGet("userID").(uint)
+	cfg, err := data.GetChatConfig(userID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, cfg)
 }
+
 func UpdateConfig(c *gin.Context) {
-	c.JSON(200, gin.H{})
+	userID := c.MustGet("userID").(uint)
+	var cfg data.ChatConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	if err := data.SaveChatConfig(userID, &cfg); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, cfg)
 }

@@ -18,6 +18,15 @@ type AgentConfig struct {
 	Prompt string `json:"prompt"`
 }
 
+// ChatConfig stores the user's global chat settings
+type ChatConfig struct {
+	gorm.Model
+	UserID   uint   `json:"userId" gorm:"uniqueIndex"`
+	APIKey   string `json:"apiKey"`
+	BaseURL  string `json:"baseUrl"`
+	LLMModel string `json:"model"`
+}
+
 // Stored as JSON in MySQL for simplicity in MVP, or normalized tables?
 // For MVP, let's keep History as a JSON blob if we use MySQL 5.7+ JSON type,
 // or just text. GORM supports serializer.
