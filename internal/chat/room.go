@@ -141,8 +141,17 @@ func (r *Room) StartLoop(initialTopic string) {
 					// Manual Loop for Select
 				loop:
 					for {
+						// Prioritize Stop signal
 						select {
 						case <-r.Stop:
+							log.Printf("Agent %s loop stopped via priority signal", ag.Name)
+							return
+						default:
+						}
+
+						select {
+						case <-r.Stop:
+							log.Printf("Agent %s loop stopped via standard signal", ag.Name)
 							return
 						// 1. Interruption Check (Inside the loop!)
 						case userMsg := <-r.InputChan:
@@ -238,10 +247,7 @@ func (r *Room) StartLoop(initialTopic string) {
 func (r *Room) Judge(client *llm.Client) {
 	log.Println("Room Judge: Judging conversation...")
 
-	// 1. Stop the debate loop if running
-	// (Caller should likely call StopLoop, or we ensure it here, but StopLoop is async signal)
-	// We assume the caller (Handler) stops the loop or the 'cmd' handling implies stopping agent turns.
-	// If we are in the Reader goroutine, sending Stop signal works.
+	// Ensure loop is stopped
 	r.StopLoop()
 
 	// Give a moment for agents to silence
@@ -294,11 +300,11 @@ func (r *Room) Judge(client *llm.Client) {
 func (r *Room) StopLoop() {
 	// Check if channel is already closed to avoid panic?
 	// Or use sync.Once. For MVP, simple close.
-	// If multiple calls, this panics. Let's fix.
 	select {
 	case <-r.Stop:
 		// already closed
 	default:
+		log.Println("Stopping Room Loop...")
 		close(r.Stop)
 	}
 }
